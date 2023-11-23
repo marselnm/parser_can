@@ -8,6 +8,7 @@
           "-fdiagnostics-color=always",
           "-g3",
           "${file}",
+          "parser_can_dump.cpp",
           "-o",
           "${fileDirname}\\${fileBasenameNoExtension}.exe"
         ],
