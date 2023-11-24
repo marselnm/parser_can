@@ -9,6 +9,8 @@
           "-g3",
           "${file}",
           "parser_can_dump.cpp",
+          "parser_can.cpp",
+          "circle_buffer.cpp",
           "-o",
           "${fileDirname}\\${fileBasenameNoExtension}.exe"
         ],
