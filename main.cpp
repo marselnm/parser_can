@@ -19,7 +19,8 @@ int main()
 
     vector<canPacket> vCanID222;
 
-    fCanDump.open("dump_can.txt");
+    //fCanDump.open("dump_can.txt");
+    fCanDump.open("can_cmd_debug_0x222.txt");
 
     putCmdFromCanDump(fCanDump, vCanID222);
 

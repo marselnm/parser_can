@@ -18,7 +18,9 @@ public:
     {
         size_t pos = str_packet_.find("Rx");
 
-        if (pos != std::string::npos && str_packet_.size() == 54)
+        int temp_size = str_packet_.size();
+
+        if (pos != std::string::npos && str_packet_.size() >= 53)
         {
             for (int i = 0; i < 8; ++i)
             {
