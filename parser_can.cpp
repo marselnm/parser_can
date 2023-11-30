@@ -21,6 +21,7 @@ void initQueueCanCmd()
     queue_can_cmd.bytes_avail = 0;
 
     curCanCmd.flags = eWaitHead;
+    curCanCmd.totReceived = 0;
 }
 
 
@@ -86,6 +87,7 @@ void parseCanCmd()
                 if (crc_calc == crc_in) //check crc
                 {
                     putInCmWord(cCmWord, curCanCmd.cmd_buf, curCanCmd.totPacket, curCanCmd.len);    //call put in CmWord
+                    curCanCmd.totReceived++;
                     printCmdWord(cCmWord, curCanCmd.len);//call identifier
                     curCanCmd.flags = eWaitHead;    //for new cmd
                 }
@@ -150,6 +152,8 @@ uint32_t calcCRCforCan(can_cmd* curCanCmd)
 
 void printCmdWord(uint8_t *cmd_word, uint16_t len)
 {
+    printf("%d ",curCanCmd.totReceived);
+
     for (int i = 0; i < len + 3; ++i)
     {
         printf("%c", cmd_word[i]);
