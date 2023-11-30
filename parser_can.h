@@ -1,6 +1,13 @@
 #pragma once
 #include <cstdint>
 
+enum
+{
+    eWaitHead = 0,      //wait head of can msg, which contain id, len of cmd and crc
+    eParseHead = 1,     //recieved head and can parse it
+    eCollectPacket = 2, //for collect packet of can msg
+    eMsgReceieved = 3   //we receieved can msg
+};
 typedef struct 
 {
     uint8_t flags;
@@ -11,6 +18,7 @@ typedef struct
     uint16_t len;
     uint8_t cmd_buf[128];
 }can_cmd;
+
 
 void initQueueCanCmd();
 void parseCanCmd();
