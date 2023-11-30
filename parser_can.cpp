@@ -10,17 +10,6 @@ static uint8_t buffer_can_cmd[BUF_CMD_SIZE];
 queue_t queue_can_cmd;
 
 static uint8_t 	cCmWord[150];	// команда для управления платой
-typedef struct 
-{
-    uint8_t flags;
-    uint16_t totPacket;
-    uint16_t curPacket;
-    uint16_t nextPacket;
-    uint32_t crc;
-    uint16_t len;
-    uint8_t cmd_buf[128];
-}can_cmd;
-
 static can_cmd curCanCmd;
 
 void initQueueCanCmd()
@@ -90,10 +79,14 @@ void parseCanCmd()
 
             if (curCanCmd.flags == 3)   //we have full can msg
             {
-                if (1)//this we should check crc
+                uint32_t crc_in = (curCanCmd.cmd_buf[7] << 24) | (curCanCmd.cmd_buf[6] << 16) | (curCanCmd.cmd_buf[5] << 8) | curCanCmd.cmd_buf[4];
+
+                uint32_t crc_calc = calcCRCforCan(&curCanCmd);
+
+                if (crc_calc == crc_in) //check crc
                 {
                     putInCmWord(cCmWord, curCanCmd.cmd_buf, curCanCmd.totPacket, curCanCmd.len);//call put in CmWord
-                    Idenifier(cCmWord, curCanCmd.len);//call identifier
+                    printCmdWord(cCmWord, curCanCmd.len);//call identifier
                     curCanCmd.flags = 0; //for new cmd
                 }
                 else
@@ -111,7 +104,7 @@ void parseCanCmd()
     }
 }
 
-void putInCanCmdBuf(uint8_t *cmd_buf, uint8_t *data, uint8_t curPacket)
+inline void putInCanCmdBuf(uint8_t *cmd_buf, uint8_t *data, uint8_t curPacket)
 {
     for(int i = 0; i < 8; ++i)
     {
@@ -135,7 +128,27 @@ void putInCmWord(uint8_t *cmd_word, uint8_t *cmd_buf, uint8_t totPacket, uint16_
     cmd_word[len + 2] = '&';
 }
 
-void Idenifier(uint8_t *cmd_word, uint16_t len)
+uint32_t calcCRCforCan(can_cmd* curCanCmd)
+{
+    uint16_t remder = curCanCmd->len % 6; 
+    uint16_t calc_len = (remder) ? (8 * curCanCmd->totPacket  - (6 - remder)) : (8 * curCanCmd->totPacket);
+
+    uint32_t crc = 0;
+
+    for (int i = 8; i < calc_len; ++i)
+    {
+       if ((i % 8 == 0) || ((i - 1) % 8 == 0))
+       {
+            continue;
+       }
+
+       crc += curCanCmd->cmd_buf[i]; 
+    }
+
+    return crc;
+}
+
+void printCmdWord(uint8_t *cmd_word, uint16_t len)
 {
     for (int i = 0; i < len + 3; ++i)
     {
