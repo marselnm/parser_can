@@ -16,8 +16,8 @@ void putCmdFromCanDump(std::ifstream& fCanDump, vector<canPacket>& vCan, string 
                 canPacket packet(temp_str);
                 vCan.push_back(packet);
 
-                std::cout << temp_str << std::endl;//for debug only
-                packet.printBytes();//for debug only
+                //std::cout << temp_str << std::endl;//for debug only
+                //packet.printBytes();//for debug only
             }
         }
     }
