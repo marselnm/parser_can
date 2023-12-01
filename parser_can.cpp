@@ -22,15 +22,8 @@ void initQueueCanCmd()
 
     curCanCmd.flags = eWaitHead;
     curCanCmd.totReceived = 0;
+    curCanCmd.totBadCrc = 0;
 }
-
-
-// 09:06:59.906 2 0x222 STD Rx 8 00 00 0B 00 81 02 00 00
-
-// 09:06:59.906 2 0x222 STD Rx 8 01 00 24 49 46 43 4F 52
-
-// 09:06:59.906 2 0x222 STD Rx 8 02 00 31 30 31 32 26 32
-
 
 void parseCanCmd()
 {
@@ -93,7 +86,9 @@ void parseCanCmd()
                 }
                 else
                 {
-                    curCanCmd.flags = eWaitHead;    //reset because we don't have correct crc 
+                    curCanCmd.totBadCrc++;
+                    curCanCmd.flags = eWaitHead;    //reset because we don't have correct crc
+                    printf("bad crc %d\n", curCanCmd.totBadCrc); 
                 }
             } 
             break;

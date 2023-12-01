@@ -18,6 +18,7 @@ typedef struct
     uint16_t len;
     uint8_t cmd_buf[128];
     uint32_t totReceived;
+    uint32_t totBadCrc;
 }can_cmd;
 
 
