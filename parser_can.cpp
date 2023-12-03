@@ -20,16 +20,10 @@ void initQueueCanCmd()
     queue_can_cmd.tail = 0;
     queue_can_cmd.bytes_avail = 0;
 
-    curCanCmd.flags = 0;
+    curCanCmd.flags = eWaitHead;
+    curCanCmd.totReceived = 0;
+    curCanCmd.totBadCrc = 0;
 }
-
-
-// 09:06:59.906 2 0x222 STD Rx 8 00 00 0B 00 81 02 00 00
-
-// 09:06:59.906 2 0x222 STD Rx 8 01 00 24 49 46 43 4F 52
-
-// 09:06:59.906 2 0x222 STD Rx 8 02 00 31 30 31 32 26 32
-
 
 void parseCanCmd()
 {
@@ -41,12 +35,12 @@ void parseCanCmd()
 
         if (temp_buf[0] == 0 && temp_buf[1] == 0)
         {
-            curCanCmd.flags = 1;    //we found head of can msg    
+            curCanCmd.flags = eParseHead;    //we found head of can msg    
         } 
 
         switch (curCanCmd.flags)
         {
-        case 1: //parse head of can msg
+        case eParseHead: //parse head of can msg
         {
             curCanCmd.len = (temp_buf[3] << 8) | temp_buf[2];
             curCanCmd.crc = (temp_buf[7] << 24) | (temp_buf[6] << 16) | (temp_buf[5] << 8) | temp_buf[4];
@@ -54,10 +48,10 @@ void parseCanCmd()
             curCanCmd.curPacket = 0;
             curCanCmd.nextPacket = 1;
             putInCanCmdBuf(curCanCmd.cmd_buf, temp_buf, curCanCmd.curPacket);
-            curCanCmd.flags = 2;           
+            curCanCmd.flags = eCollectPacket;           
             break;
         }
-        case 2: //collect next packet of can msg
+        case eCollectPacket: //collect next packet of can msg
         {
             uint16_t packet = (temp_buf[1] << 8) | temp_buf[0];
 
@@ -69,15 +63,15 @@ void parseCanCmd()
 
                 if (curCanCmd.nextPacket == curCanCmd.totPacket)
                 {
-                    curCanCmd.flags = 3;    //we collected all packet in can msg
+                    curCanCmd.flags = eMsgReceieved;    //we collected all packet in can msg
                 }
             }
             else
             {
-                curCanCmd.flags = 0;    //reset because we don't have correct num of paket in can msg    
+                curCanCmd.flags = eWaitHead;    //reset because we don't have correct num of paket in can msg    
             }
 
-            if (curCanCmd.flags == 3)   //we have full can msg
+            if (curCanCmd.flags == eMsgReceieved)   //we have full can msg
             {
                 uint32_t crc_in = (curCanCmd.cmd_buf[7] << 24) | (curCanCmd.cmd_buf[6] << 16) | (curCanCmd.cmd_buf[5] << 8) | curCanCmd.cmd_buf[4];
 
@@ -85,13 +79,16 @@ void parseCanCmd()
 
                 if (crc_calc == crc_in) //check crc
                 {
-                    putInCmWord(cCmWord, curCanCmd.cmd_buf, curCanCmd.totPacket, curCanCmd.len);//call put in CmWord
+                    putInCmWord(cCmWord, curCanCmd.cmd_buf, curCanCmd.totPacket, curCanCmd.len);    //call put in CmWord
+                    curCanCmd.totReceived++;
                     printCmdWord(cCmWord, curCanCmd.len);//call identifier
-                    curCanCmd.flags = 0; //for new cmd
+                    curCanCmd.flags = eWaitHead;    //for new cmd
                 }
                 else
                 {
-                    curCanCmd.flags = 0;
+                    curCanCmd.totBadCrc++;
+                    curCanCmd.flags = eWaitHead;    //reset because we don't have correct crc
+                    printf("bad crc %d\n", curCanCmd.totBadCrc); 
                 }
             } 
             break;
@@ -150,6 +147,8 @@ uint32_t calcCRCforCan(can_cmd* curCanCmd)
 
 void printCmdWord(uint8_t *cmd_word, uint16_t len)
 {
+    printf("%d ",curCanCmd.totReceived);
+
     for (int i = 0; i < len + 3; ++i)
     {
         printf("%c", cmd_word[i]);

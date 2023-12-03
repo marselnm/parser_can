@@ -13,7 +13,7 @@ using namespace std;
 
 int main()
 {
-    std::cout << " Hello for parser can" << std::endl;
+    std::cout << "Hello from parser can" << std::endl;
 
     std::ifstream fCanDump;
 
