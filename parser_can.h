@@ -8,23 +8,28 @@ enum
     eCollectPacket = 2, //for collect packet of can msg
     eMsgReceieved = 3   //we receieved can msg
 };
+
+/**
+ * struct for work with current can msg
+ */
 typedef struct 
 {
-    uint8_t flags;
-    uint16_t totPacket;
-    uint16_t curPacket;
-    uint16_t nextPacket;
-    uint32_t crc;
-    uint16_t len;
-    uint8_t cmd_buf[128];
-    uint32_t totReceived;
-    uint32_t totBadCrc;
+    uint8_t flags;          //for machine state
+    uint16_t totPacket;     //number of packet in current can msg
+    uint16_t curPacket;     //number of current can packet
+    uint16_t nextPacket;    //number of next can packet
+    uint32_t crc;           //CRC for can msg (can find this in first can packet)
+    uint16_t len;           //len of data in one can msg (can find this in first can packet)
+    uint8_t cmd_buf[128];   //local buffer for current can msg
+    
+    uint32_t totReceived;   //for all msg, count received msg, clean after reset board
+    uint32_t totBadCrc;     //for all msg, count msg with bad CRC, clean after reset board 
 }can_cmd;
 
 
 void initQueueCanCmd();
 void parseCanCmd();
-inline void putInCanCmdBuf(uint8_t *cmd_buf, uint8_t *data, uint8_t curPacket);
-void putInCmWord(uint8_t *cmd_word, uint8_t *cmd_buf, uint8_t totPacket, uint16_t len);
+void collectCanPacket(uint8_t *cmd_buf, uint8_t *data, uint8_t curPacket);
+void convertInReceiverMsg(uint8_t *cmd_word, uint8_t *cmd_buf, uint8_t totPacket, uint16_t len);
 void printCmdWord(uint8_t *cmd_word, uint16_t len);
 uint32_t calcCRCforCan(can_cmd* curCanCmd);

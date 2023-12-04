@@ -1,17 +1,20 @@
-#include "parser_can.h"
 #include <cstdint>
 #include <cmath>
 #include <iostream>
 
+#include "parser_can.h"
 #include "circle_buffer.h"
 
-#define BUF_CMD_SIZE 6000
-static uint8_t buffer_can_cmd[BUF_CMD_SIZE];
-queue_t queue_can_cmd;
+#define BUF_CMD_SIZE 512
+queue_t queue_can_cmd;  //struct for work with circle buffer for collect can packet
+static uint8_t buffer_can_cmd[BUF_CMD_SIZE];    //circle buffer for collect can packet
+static can_cmd curCanCmd;       //struct for work with current can msg
+static uint8_t cCmWord[150];    //cmd for control receiver
 
-static uint8_t 	cCmWord[150];	// команда для управления платой
-static can_cmd curCanCmd;
-
+/**
+ * function for init struct for work with circle buffer
+ * should call before can interrupt will turn on
+ */
 void initQueueCanCmd()
 {
     queue_can_cmd.buffer = buffer_can_cmd;    
@@ -25,6 +28,9 @@ void initQueueCanCmd()
     curCanCmd.totBadCrc = 0;
 }
 
+/**
+ * main function for collect can packets in one msg
+ */
 void parseCanCmd()
 {
     uint8_t temp_buf[8];
@@ -47,7 +53,7 @@ void parseCanCmd()
             curCanCmd.totPacket = ((curCanCmd.len + 6 - 1) / 6) + 1;
             curCanCmd.curPacket = 0;
             curCanCmd.nextPacket = 1;
-            putInCanCmdBuf(curCanCmd.cmd_buf, temp_buf, curCanCmd.curPacket);
+            collectCanPacket(curCanCmd.cmd_buf, temp_buf, curCanCmd.curPacket);
             curCanCmd.flags = eCollectPacket;           
             break;
         }
@@ -59,7 +65,7 @@ void parseCanCmd()
             {
                 curCanCmd.curPacket++;
                 curCanCmd.nextPacket++;
-                putInCanCmdBuf(curCanCmd.cmd_buf, temp_buf, curCanCmd.curPacket);
+                collectCanPacket(curCanCmd.cmd_buf, temp_buf, curCanCmd.curPacket);
 
                 if (curCanCmd.nextPacket == curCanCmd.totPacket)
                 {
@@ -79,7 +85,7 @@ void parseCanCmd()
 
                 if (crc_calc == crc_in) //check crc
                 {
-                    putInCmWord(cCmWord, curCanCmd.cmd_buf, curCanCmd.totPacket, curCanCmd.len);    //call put in CmWord
+                    convertInReceiverMsg(cCmWord, curCanCmd.cmd_buf, curCanCmd.totPacket, curCanCmd.len);    //call put in CmWord
                     curCanCmd.totReceived++;
                     printCmdWord(cCmWord, curCanCmd.len);//call identifier
                     curCanCmd.flags = eWaitHead;    //for new cmd
@@ -101,7 +107,10 @@ void parseCanCmd()
     }
 }
 
-inline void putInCanCmdBuf(uint8_t *cmd_buf, uint8_t *data, uint8_t curPacket)
+/**
+ * local function for copy current packet in can msg buffer
+ */
+void collectCanPacket(uint8_t *cmd_buf, uint8_t *data, uint8_t curPacket)
 {
     for(int i = 0; i < 8; ++i)
     {
@@ -109,7 +118,10 @@ inline void putInCanCmdBuf(uint8_t *cmd_buf, uint8_t *data, uint8_t curPacket)
     } 
 }
 
-void putInCmWord(uint8_t *cmd_word, uint8_t *cmd_buf, uint8_t totPacket, uint16_t len)
+/**
+ * function for convert in receiver msg
+ */
+void convertInReceiverMsg(uint8_t *cmd_word, uint8_t *cmd_buf, uint8_t totPacket, uint16_t len)
 {
     for (int i = 1; i < totPacket; ++i)
     {
@@ -125,6 +137,9 @@ void putInCmWord(uint8_t *cmd_word, uint8_t *cmd_buf, uint8_t totPacket, uint16_
     cmd_word[len + 2] = '&';
 }
 
+/**
+ * calculation CRC for can msg
+ */
 uint32_t calcCRCforCan(can_cmd* curCanCmd)
 {
     uint16_t remder = curCanCmd->len % 6; 
@@ -145,9 +160,12 @@ uint32_t calcCRCforCan(can_cmd* curCanCmd)
     return crc;
 }
 
+/**
+ * print received msg, for debug only
+ */
 void printCmdWord(uint8_t *cmd_word, uint16_t len)
 {
-    printf("%d ",curCanCmd.totReceived);
+    printf("%d ", (int)curCanCmd.totReceived);
 
     for (int i = 0; i < len + 3; ++i)
     {
