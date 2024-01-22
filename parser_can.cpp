@@ -3,13 +3,16 @@
 #include <iostream>
 
 #include "parser_can.h"
-#include "circle_buffer.h"
 
-#define BUF_CMD_SIZE 512
 queue_t queue_can_cmd;  //struct for work with circle buffer for collect can packet
 static uint8_t buffer_can_cmd[BUF_CMD_SIZE];    //circle buffer for collect can packet
 static can_cmd curCanCmd;       //struct for work with current can msg
 static uint8_t cCmWord[150];    //cmd for control receiver
+
+//for Rx data of chains can_id=0x27B
+queue_t queue_can_chains;
+uint8_t buffer_can_chains[BUF_CMD_SIZE];
+can_rx curCanRxData;
 
 /**
  * function for init struct for work with circle buffer
@@ -172,4 +175,132 @@ void printCmdWord(uint8_t *cmd_word, uint16_t len)
         printf("%c", cmd_word[i]);
     }
     printf("\n");
+}
+
+/**
+ * function for init struct for work with circle buffer
+ * should call before can interrupt will turn on
+ */
+void initQueueRxCan(queue_t* queue_rx_can, uint8_t* buffer, can_rx* curCanRx)
+{
+    queue_rx_can->buffer = buffer;    
+    queue_rx_can->buffer_size = BUF_CMD_SIZE;
+    queue_rx_can->head = 0;
+    queue_rx_can->tail = 0;
+    queue_rx_can->bytes_avail = 0;
+
+    curCanRx->flags = eWaitHead;
+    curCanRx->totReceived = 0;
+    curCanRx->totBadCrc = 0;
+}
+
+int parseCanRx(queue_t* queue_rx_can, can_rx* cur_can_rx, stNewChain* chain_can)
+{
+    uint8_t temp_buf[8];
+
+    while (queue_rx_can->bytes_avail >= 8)
+    {
+        get(queue_rx_can, temp_buf, 8);
+
+        if (temp_buf[0] == 0 && temp_buf[1] == 0)
+        {
+            cur_can_rx->flags = eParseHead;    //we found head of can msg    
+        } 
+
+        switch (cur_can_rx->flags)
+        {
+        case eParseHead: //parse head of can msg
+        {
+            cur_can_rx->len = (temp_buf[3] << 8) | temp_buf[2];
+            cur_can_rx->crc = (temp_buf[7] << 24) | (temp_buf[6] << 16) | (temp_buf[5] << 8) | temp_buf[4];
+            cur_can_rx->totPacket = ((cur_can_rx->len + 6 - 1) / 6) + 1;
+            cur_can_rx->curPacket = 0;
+            cur_can_rx->nextPacket = 1;
+            collectCanPacket(cur_can_rx->buf, temp_buf, cur_can_rx->curPacket);
+            cur_can_rx->flags = eCollectPacket;           
+            break;
+        }
+        case eCollectPacket: //collect next packet of can msg
+        {
+            uint16_t packet = (temp_buf[1] << 8) | temp_buf[0];
+
+            if (packet == cur_can_rx->nextPacket)
+            {
+                cur_can_rx->curPacket++;
+                cur_can_rx->nextPacket++;
+                collectCanPacket(cur_can_rx->buf, temp_buf, cur_can_rx->curPacket);
+
+                if (cur_can_rx->nextPacket == cur_can_rx->totPacket)
+                {
+                    cur_can_rx->flags = eMsgReceieved;    //we collected all packet in can msg
+                }
+            }
+            else
+            {
+                cur_can_rx->flags = eWaitHead;    //reset because we don't have correct num of paket in can msg    
+            }
+
+            if (cur_can_rx->flags == eMsgReceieved)   //we have full can msg
+            {
+                uint32_t crc_in = (cur_can_rx->buf[7] << 24) | (cur_can_rx->buf[6] << 16) | (cur_can_rx->buf[5] << 8) | cur_can_rx->buf[4];
+
+                uint32_t crc_calc = calcCRCRxCan(cur_can_rx);
+
+                if (crc_calc == crc_in) //check crc
+                {
+                    writeDataInStruct(cur_can_rx, chain_can);
+                    cur_can_rx->totReceived++;
+                    curCanCmd.flags = eWaitHead;    //for new cmd
+                    return 1;
+                }
+                else
+                {
+                    cur_can_rx->totBadCrc++;
+                    cur_can_rx->flags = eWaitHead;    //reset because we don't have correct crc
+                    printf("bad crc %d\n", cur_can_rx->totBadCrc); 
+                }
+            } 
+            break;
+        }
+
+        default:
+            break;
+        }
+
+    }
+
+    return 0;
+}
+
+uint32_t calcCRCRxCan(can_rx* cur_can_rx)
+{
+    uint16_t remder = cur_can_rx->len % 6; 
+    uint16_t calc_len = (remder) ? (8 * cur_can_rx->totPacket  - (6 - remder)) : (8 * cur_can_rx->totPacket);
+
+    uint32_t crc = 0;
+
+    for (int i = 8; i < calc_len; ++i)
+    {
+       if ((i % 8 == 0) || ((i - 1) % 8 == 0))
+       {
+            continue;
+       }
+
+       crc += cur_can_rx->buf[i]; 
+    }
+
+    return crc;
+}
+
+void writeDataInStruct(can_rx* cur_can_rx, stNewChain* chain_can)
+{
+    uint8_t* p_st = (uint8_t*)(chain_can);
+
+    for (int i = 1; i < cur_can_rx->totPacket; ++i)
+    {
+        for (int j = 0; j < 6; ++j)
+        {
+            p_st[6*(i-1) + j] = cur_can_rx->buf[10 + 8 * (i - 1) + j]; 
+        }
+    }
 }

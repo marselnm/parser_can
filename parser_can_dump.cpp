@@ -21,4 +21,8 @@ void putCmdFromCanDump(std::ifstream& fCanDump, vector<canPacket>& vCan, string 
             }
         }
     }
+    else
+    {
+        std::cout << "can't open file" << std::endl;
+    }
 }
